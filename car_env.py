@@ -18,6 +18,7 @@ import statistics
 import math
 
 from QLearning import QAgent
+from model_based import Descritize
 
 IM_WIDTH = 640
 IM_HEIGHT = 480
