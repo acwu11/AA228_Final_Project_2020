@@ -19,6 +19,10 @@ class Descritize:
     # returns total size of state space
     def get_total_states(self):
         return self.nSBins * self.nDBins * self.nRev * self.nCol
+
+    # returns total size of action space
+    def get_total_actions(self):
+        return 3
    
     # gets linear state index for given car state: 
     # speed, depth, reverse (or not), and collision (or not)
@@ -40,10 +44,16 @@ class Descritize:
 #------------------------------------------------------------
 # MAXIMUM LIKELIHOOD 
 # -----------------------------------------------------------
-class MaxLProblem:
+class MaxLAgent:
 
     # initialize maximum likelihood MDP problem
-    def __init__(self, nState, nAction, discount):
+    def __init__(self, max_speed, min_speed, max_dist, min_dist, discount):
+        # state space representation
+        self.ssRep = Descritize(max_speed, min_speed, max_dist, min_dist)
+        nState = self.ssRep.get_total_states()
+        nAction = self.ssRep.get_total_actions()
+
+        # params
         self.nS = nState
         self.nA = nAction
         self.g = discount
@@ -53,8 +63,8 @@ class MaxLProblem:
         self.T = np.zeros((nAction, nState, nState))   # transition nA layers of nS x nS
         self.r = np.zeros(nState, nAction)             # unnormalized reward nS x nA 
         self.R = np.zeros(nState, nAction)             # reward MLE nS x nA
-        # self.U = np.zeros(nState)
-    
+        
+
     # updates the count, transition, and rewards 
     # matrices given indices of current state s, action 
     # taken a, next state sp, and the reward received r.
