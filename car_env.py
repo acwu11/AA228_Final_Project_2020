@@ -17,7 +17,7 @@ import cv2
 import statistics
 import math
 
-from QLearning import QAgent
+from QLearning import *
 
 IM_WIDTH = 640
 IM_HEIGHT = 480
@@ -222,25 +222,37 @@ class CarEnv:
         return obs, reward, done, action
 
 if __name__ == "__main__":
-       
+    
+    # which method
+    sarsa = 1
+    qlearning = 0
+
     FPS = 5
-    agent = QAgent()
+    if qlearning == 1:
+        agent = QAgent(80, 0, 50, 0)
+    elif sarsa == 1:
+        agent = SARSA_agent(80, 0, 50, 0)
     env = CarEnv()
+
     
     #agent.get_qs(np.ones((env.IM_HEIGHT, env.IM_WIDTH, 3)))
     for i in range(NUM_EPISODES):
         env.reset()
         while True:
-            current_state = env. get_obs()
+            current_state = env.get_obs()
             
-            #Optimize for the best action
-            if np.random.random() > EPSILON:
-                action = np.argmax(agent.get_Q(current_state))
-                time.sleep(1/FPS)
-                print(f"Action {action} was taken.")
-            else:
-                action = np.random.randint(0, 2)
-                #print("Random action was taken.")
+            # Optimize for the best action
+            if qlearning == 1: 
+                if np.random.random() > EPSILON:
+                    action = np.argmax(agent.get_Q(current_state))
+                    time.sleep(1/FPS)
+                    print(f"Action {action} was taken.")
+                else:
+                    action = np.random.randint(0, 2)
+                    #print("Random action was taken.")
+                    time.sleep(1/FPS)
+            elif sarsa == 1:
+                action = agent.lastexp[1]
                 time.sleep(1/FPS)
             
             #Advance controls with that action
@@ -248,8 +260,11 @@ if __name__ == "__main__":
             #print(new_state)
             
             #Update Q_table
-            agent.update_Q(current_state, reward, action, new_state)
+            if qlearning == 1:
+                agent.update_Q(current_state, reward, action, new_state)
             #print(f"Reward is {reward}")
+            elif sarsa == 1:
+                agent.sarsa_update(reward, new_state)
             
             if done:
                 break
