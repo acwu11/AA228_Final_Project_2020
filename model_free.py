@@ -55,7 +55,7 @@ class SARSA_agent(QAgent):
         a_ind = 1
         self.lastexp = [s_ind, a_ind]
 
-    def sarsa_update(self, r, sp):
+    def sarsa_update(self, r, a, sp):
         # get linear indices
         sp_ind = self.saRep.get_state_ind(sp[0], sp[1], sp[2], sp[3])
         ap_ind = np.argmax(self.Q_table[sp_ind,:])
@@ -63,7 +63,7 @@ class SARSA_agent(QAgent):
         # update Q matrix
         if len(self.lastexp) != 0:
             s_ind = self.lastexp[0]
-            a_ind = self.lastexp[1]
+            a_ind = a
             self.Q_table[s_ind, a_ind] += LEARNING_RATE * (r \
                 + DISCOUNT * self.Q_table[sp_ind, ap_ind] \
                 - self.Q_table[s_ind, a_ind])
@@ -90,11 +90,11 @@ class SLambda_agent(QAgent):
         self.lam = l                                    # exponential decay factor
         self.N = np.zeros((self.nState, self.nAction))    # counts matrix
     
-    def sarsa_lambda_update(self, r, sp):
+    def sarsa_lambda_update(self, r, a, sp):
         if len(self.lastexp) != 0:
             # update counts
             s_ind = self.lastexp[0]
-            a_ind = self.lastexp[1]
+            a_ind = a
             self.N[s_ind, a_ind] += 1
 
             # compute temporal difference update
@@ -107,5 +107,8 @@ class SLambda_agent(QAgent):
                 for aa in range(self.nAction):
                     self.Q_table[ss, aa] += LEARNING_RATE * delta * self.N[ss, aa]
                     self.N[ss, aa] *= DISCOUNT * self.lam
+
+            # update last experience
+            self.lastexp = [sp_ind, ap_ind]
                 
         

@@ -24,7 +24,7 @@ IM_HEIGHT = 480
 LEARNING_RATE = 0.9
 DISCOUNT = 0.9
 EPSILON = 0.3
-SHOW_PREVIEW = True
+SHOW_PREVIEW = False
 NUM_EPISODES = 200
 
 class CarEnv:
@@ -40,6 +40,7 @@ class CarEnv:
         self.client.set_timeout(5.0)
 
         self.world = self.client.get_world()
+        self.spectator = self.world.get_spectator()
 
         self.blueprint_library = self.world.get_blueprint_library()
 
@@ -52,6 +53,7 @@ class CarEnv:
         self.steering_amt = 0
         self.throttle_amt = 0
         self.depth = 50
+        self.azimuth = 0
         
         self.spawn_point = (self.world.get_map().get_spawn_points())[5]
 
@@ -61,6 +63,17 @@ class CarEnv:
         #vehicle.set_autopilot(True)  # if you just wanted some NPCs to drive.
 
         self.actor_list.append(self.vehicle)
+        
+        # # Wait for world to get the vehicle actor
+        # self.world.tick()
+
+        # self.world_snapshot = self.world.wait_for_tick()
+        # self.actor_snapshot = self.world_snapshot.find(self.vehicle.id)
+
+        # # Set spectator at given transform (vehicle transform)
+        #self.spectator.set_transform(self.actor_snapshot.get_transform())
+        
+        #self.world.camera_manager.toggle_camera()
 
         # https://carla.readthedocs.io/en/latest/cameras_and_sensors
         # get the blueprint for this sensor
@@ -76,12 +89,13 @@ class CarEnv:
 
         # Adjust sensor relative to vehicle
         spawn_point = carla.Transform(carla.Location(x=2.5, z=0.7))
+        spawn_pointcam = carla.Transform(carla.Location(x=0, z=2))
 
         # spawn the sensor and attach to vehicle.
         self.sensor = self.world.spawn_actor(self.blueprint, spawn_point, attach_to=self.vehicle)
         self.sensorOD = self.world.spawn_actor(self.blueprintOD, spawn_point, attach_to=self.vehicle)
         self.sensorCD = self.world.spawn_actor(self.blueprintCD, spawn_point, attach_to=self.vehicle)
-        self.sensorRGB = self.world.spawn_actor(self.blueprintRGB, spawn_point, attach_to=self.vehicle)
+        self.sensorRGB = self.world.spawn_actor(self.blueprintRGB, spawn_pointcam, attach_to=self.vehicle)
 
         # add sensor to list of actors
         self.actor_list.append(self.sensor)
@@ -96,7 +110,7 @@ class CarEnv:
         self.sensorCD.listen(lambda dataCD: self.register_collision(dataCD))
         self.sensorRGB.listen(lambda dataRGB: self.process_img(dataRGB))
         
-        
+        #self.spectator.set_transform(self.sensor.get_transform())
     #May have to add a reset function too if we do episodic training
     
     def process_img(self, image):
@@ -107,15 +121,17 @@ class CarEnv:
             cv2.imshow("", i3)
             cv2.waitKey(1)
         self.front_camera = i3
-
+        self.spectator.set_transform(self.sensorRGB.get_transform())
 
     def process_data(self, data):
         img = data.raw_data
         self.points = np.frombuffer(data.raw_data, dtype=np.dtype('f4'))
         self.points = np.reshape(self.points, (len(data), 4))
         self.depth = statistics.mean([item[3] for item in self.points])
+        self.azimuth = statistics.mean([item[2] for item in self.points])*(180/math.pi)
         self.detect_count = data.get_detection_count()
             
+        #print(self.azimuth)
         #print(self.depth)
         #print(self.detect_count)
         return self.depth
@@ -135,7 +151,7 @@ class CarEnv:
     def get_obs(self):
         self.v = self.vehicle.get_velocity()
         self.kmh = int(3.6*math.sqrt(self.v.x**2 + self.v.y**2 + self.v.z**2))
-        return [self.kmh, self.depth, 0,  len(self.collision_hist)]  
+        return [self.kmh, self.depth, 0,  len(self.collision_hist), self.azimuth]  
 
     def step(self, action):
         if action == 0:
@@ -144,6 +160,24 @@ class CarEnv:
             self.vehicle.apply_control(carla.VehicleControl(throttle=1.0, steer=0))
         elif action == 2:
             self.vehicle.apply_control(carla.VehicleControl(throttle=1.0, steer=.1))
+        elif action == 3:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0.5, steer=.1))
+        elif action == 4:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0.5, steer=-.1))
+        elif action == 5:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0, steer=.1))
+        elif action == 6:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0, steer=-.1))
+        elif action == 7:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0, steer=.1, brake=0.5))
+        elif action == 8:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0, steer=-.1, brake=0.5))
+        elif action == 9:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0, steer=.1, brake=1))
+        elif action == 10:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0, steer=0, brake=1))
+        else:
+            self.vehicle.apply_control(carla.VehicleControl(throttle=0, steer=-.1, brake=1))
                 
         # if action == 1:
             # self.throttle_amt = self.control_diff
@@ -200,24 +234,29 @@ class CarEnv:
         
         if len(self.collision_hist) != 0:
             done = True
-            reward = -200
+            reward = 0
+            #reward = -200
             
-        elif self.kmh < 1:
+        elif (self.kmh < 10) and self.depth > 1:
             done = False
             reward = -10
-            
-        elif self.kmh > 70:
+        elif self.kmh > 60:
             done = False
             reward = -1
-            
+        elif 1 < self.depth < 5:
+            done = False
+            reward = -50
+        elif self.depth < 1:
+            done = False
+            reward = -1
         else:
             done = False
             reward = 10
             
-        reward = reward - 100*(1 - self.depth/60)
+        #reward = reward - 100*(1 - self.depth/60)
         # if self.episode_start + SECONDS_PER_EPISODE < time.time():
             # done = True
-        obs =  [self.kmh, self.depth, 0,  len(self.collision_hist)]  
+        obs =  [self.kmh, self.depth, 0,  len(self.collision_hist), self.azimuth]  
         #print(self.depth)
         return obs, reward, done, action
 
@@ -229,6 +268,7 @@ if __name__ == "__main__":
     sarsa_lambda = 1
 
     FPS = 5
+    env = CarEnv()
 
     if qlearning == 1:
         agent = QAgent(80, 0, 50, 0)
@@ -236,31 +276,39 @@ if __name__ == "__main__":
         agent = SARSA_agent(80, 0, 50, 0)
     elif sarsa_lambda == 1:
         agent = SLambda_agent(80, 0, 50, 0, 0.5)
-
-    env = CarEnv()
-
+        s_init = agent.saRep.get_state_ind(0,50,0,0)
+    
     #agent.get_qs(np.ones((env.IM_HEIGHT, env.IM_WIDTH, 3)))
     for i in range(NUM_EPISODES):
         env.reset()
+        if i <= 50: 
+            EPSILON = 0.3
+        elif i > 50:
+            EPSILON = 0.1
+        elif i > 100:
+            EPSILON = 0.05
+        else:
+            EPSILON = 0.01
         while True:
+            #env.spectator.set_transform(env.vehicle.get_transform())
             current_state = env.get_obs()
             
             # Optimize for the best action
             if qlearning == 1: 
-                if np.random.random() > EPSILON:
+                if np.random.uniform() > EPSILON:
                     action = np.argmax(agent.get_Q(current_state))
                     time.sleep(1/FPS)
                     print(f"Action {action} was taken.")
                 else:
-                    action = np.random.randint(0, 2)
+                    action = np.random.randint(0, 3)
                     #print("Random action was taken.")
                     time.sleep(1/FPS)
             elif sarsa == 1 or sarsa_lambda == 1:
-                if np.random.random() > EPSILON:
+                if np.random.uniform() > EPSILON:
                     action = agent.lastexp[1]
                     time.sleep(1/FPS)
                 else:
-                    action = np.random.randint(0, 2)
+                    action = np.random.randint(0, 3)
                     time.sleep(1/FPS)
             
             #Advance controls with that action
@@ -272,13 +320,15 @@ if __name__ == "__main__":
                 agent.update_Q(current_state, reward, action, new_state)
             #print(f"Reward is {reward}")
             elif sarsa == 1:
-                agent.sarsa_update(reward, new_state)
+                agent.sarsa_update(reward, action, new_state)
             elif sarsa_lambda == 1:
-                agent.sarsa_lambda_update(reward, new_state)
+                agent.sarsa_lambda_update(reward, action, new_state)
             
             if done:
                 break
-            
+                    
         for actor in env.actor_list:
+            print('destroying actor')
             actor.destroy()
         print(f"Episode {i}")
+        
