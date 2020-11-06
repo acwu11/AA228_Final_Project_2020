@@ -11,9 +11,9 @@ EPSILON = 0.3
 #---------------------------------------------------------------------------
 
 class QAgent:
-    def __init__(self, max_speed, min_speed, max_dist, min_dist):
+    def __init__(self, max_speed, min_speed, max_dist, min_dist, nAction):
         # state & action space representation
-        self.saRep = Descritize(max_speed, min_speed, max_dist, min_dist)
+        self.saRep = Descritize(max_speed, min_speed, max_dist, min_dist, nAction)
         nState = self.saRep.NSTATE_TOT
         nAction = self.saRep.NACT_TOT
 
@@ -38,7 +38,7 @@ class QAgent:
 
     def get_Q(self, obs):
         state = self.saRep.get_state_ind(obs[0], obs[1], obs[2], obs[3])
-        print(self.Q_table[state, :])
+        # print(self.Q_table[state, :])
         return self.Q_table[state, :]
 
 #---------------------------------------------------------------------------
@@ -46,8 +46,8 @@ class QAgent:
 #---------------------------------------------------------------------------
 
 class SARSA_agent(QAgent):
-    def __init__(self, max_speed, min_speed, max_dist, min_dist):
-        QAgent.__init__(self, max_speed, min_speed, max_dist, min_dist)
+    def __init__(self, max_speed, min_speed, max_dist, min_dist, nAction):
+        QAgent.__init__(self, max_speed, min_speed, max_dist, min_dist, nAction)
 
         # initialize state to 0 speed, 50 depth, not in reverse, no collision
         s_ind = self.saRep.get_state_ind(min_speed,max_dist,0,0)
@@ -77,8 +77,8 @@ class SARSA_agent(QAgent):
 #---------------------------------------------------------------------------
 
 class SLambda_agent(QAgent):
-    def __init__(self, max_speed, min_speed, max_dist, min_dist, l):
-        QAgent.__init__(self, max_speed, min_speed, max_dist, min_dist)
+    def __init__(self, max_speed, min_speed, max_dist, min_dist, nAction, l):
+        QAgent.__init__(self, max_speed, min_speed, max_dist, min_dist, nAction)
         self.nState = self.saRep.NSTATE_TOT
         self.nAction = self.saRep.NACT_TOT
 

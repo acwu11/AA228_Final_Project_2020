@@ -4,7 +4,7 @@ import math
 # Class for keeping track of the state space and action space 
 # parameters, size, and indices. 
 class Descritize:
-    def __init__(self, max_speed, min_speed, max_dist, min_dist):
+    def __init__(self, max_speed, min_speed, max_dist, min_dist, nAction):
         self.max_s = max_speed
         self.max_d = max_dist
         self.min_s = min_speed
@@ -14,7 +14,7 @@ class Descritize:
         self.nRev = 2                              # reverse: 0 or 1
         self.nCol = 2                              # collision: 0 or 1
         self.NSTATE_TOT = self.get_total_states()
-        self.NACT_TOT = 3
+        self.NACT_TOT = nAction
 
     # returns total size of state space
     def get_total_states(self):
