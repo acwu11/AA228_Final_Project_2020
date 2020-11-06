@@ -14,13 +14,13 @@ class QAgent:
     def __init__(self, max_speed, min_speed, max_dist, min_dist):
         # state & action space representation
         self.saRep = Descritize(max_speed, min_speed, max_dist, min_dist)
-        self.nState = self.saRep.get_total_states()
-        self.nAction = self.saRep.get_total_actions()
+        nState = self.saRep.NSTATE_TOT
+        nAction = self.saRep.NACT_TOT
 
         # initialize the Q table
-        self.Q_table = np.ones((self.nState, self.nAction))
+        self.Q_table = np.ones((nState, nAction))
         for a in range(9):
-            self.Q_table[:, 1] = np.ones(self.nState) * 5
+            self.Q_table[:, 1] = np.ones(nState) * 5
 
     #Outputs vector Q(s,a) for every possible a
     def update_Q(self, obs, reward, action, next_state):
@@ -76,12 +76,19 @@ class SARSA_agent(QAgent):
 # SARSA LAMBDA
 #---------------------------------------------------------------------------
 
-class SLambda_agent(SARSA_agent):
+class SLambda_agent(QAgent):
     def __init__(self, max_speed, min_speed, max_dist, min_dist, l):
-        SARSA_agent.__init__(self, max_speed, min_speed, max_dist, min_dist)
+        QAgent.__init__(self, max_speed, min_speed, max_dist, min_dist)
+        self.nState = self.saRep.NSTATE_TOT
+        self.nAction = self.saRep.NACT_TOT
 
+        # initialize state to 0 speed, 50 depth, not in reverse, no collision and
+        # action to throttle 1, steer 0
+        s_ind = self.saRep.get_state_ind(min_speed,max_dist,0,0)
+        a_ind = 1
+        self.lastexp = [s_ind, a_ind]
         self.lam = l                                    # exponential decay factor
-        self.N = np.zeros(self.nState, self.nAction)    # counts matrix
+        self.N = np.zeros((self.nState, self.nAction))    # counts matrix
     
     def sarsa_lambda_update(self, r, sp):
         if len(self.lastexp) != 0:
@@ -99,6 +106,6 @@ class SLambda_agent(SARSA_agent):
             for ss in range(self.nState):
                 for aa in range(self.nAction):
                     self.Q_table[ss, aa] += LEARNING_RATE * delta * self.N[ss, aa]
-                    self.N[ss,aa] *= DISCOUNT * self.lam
+                    self.N[ss, aa] *= DISCOUNT * self.lam
                 
         

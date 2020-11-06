@@ -225,8 +225,8 @@ if __name__ == "__main__":
     
     # which method
     qlearning = 0
-    sarsa = 1
-    sarsa_lambda = 0
+    sarsa = 0
+    sarsa_lambda = 1
 
     FPS = 5
 

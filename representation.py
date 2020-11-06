@@ -13,6 +13,8 @@ class Descritize:
         self.nDBins = max_dist - min_dist + 1
         self.nRev = 2                              # reverse: 0 or 1
         self.nCol = 2                              # collision: 0 or 1
+        self.NSTATE_TOT = self.get_total_states()
+        self.NACT_TOT = 3
 
     # returns total size of state space
     def get_total_states(self):
