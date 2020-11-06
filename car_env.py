@@ -17,7 +17,7 @@ import cv2
 import statistics
 import math
 
-from QLearning import *
+from model_free import *
 
 IM_WIDTH = 640
 IM_HEIGHT = 480
@@ -224,17 +224,21 @@ class CarEnv:
 if __name__ == "__main__":
     
     # which method
-    sarsa = 1
     qlearning = 0
+    sarsa = 1
+    sarsa_lambda = 0
 
     FPS = 5
+
     if qlearning == 1:
         agent = QAgent(80, 0, 50, 0)
     elif sarsa == 1:
         agent = SARSA_agent(80, 0, 50, 0)
+    elif sarsa_lambda == 1:
+        agent = SLambda_agent(80, 0, 50, 0, 0.5)
+
     env = CarEnv()
 
-    
     #agent.get_qs(np.ones((env.IM_HEIGHT, env.IM_WIDTH, 3)))
     for i in range(NUM_EPISODES):
         env.reset()
@@ -251,9 +255,13 @@ if __name__ == "__main__":
                     action = np.random.randint(0, 2)
                     #print("Random action was taken.")
                     time.sleep(1/FPS)
-            elif sarsa == 1:
-                action = agent.lastexp[1]
-                time.sleep(1/FPS)
+            elif sarsa == 1 or sarsa_lambda == 1:
+                if np.random.random() > EPSILON:
+                    action = agent.lastexp[1]
+                    time.sleep(1/FPS)
+                else:
+                    action = np.random.randint(0, 2)
+                    time.sleep(1/FPS)
             
             #Advance controls with that action
             new_state, reward, done, _ = env.step(action)
@@ -265,6 +273,8 @@ if __name__ == "__main__":
             #print(f"Reward is {reward}")
             elif sarsa == 1:
                 agent.sarsa_update(reward, new_state)
+            elif sarsa_lambda == 1:
+                agent.sarsa_lambda_update(reward, new_state)
             
             if done:
                 break
