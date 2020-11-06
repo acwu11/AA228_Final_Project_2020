@@ -12,6 +12,7 @@ import carla
 
 import random
 import time
+from time import process_time
 import numpy as np
 import cv2
 import statistics
@@ -22,10 +23,10 @@ from model_free import *
 IM_WIDTH = 640
 IM_HEIGHT = 480
 LEARNING_RATE = 0.9
-DISCOUNT = 0.9
+DISCOUNT = 0.9999
 EPSILON = 0.3
 SHOW_PREVIEW = False
-NUM_EPISODES = 200
+NUM_EPISODES = 1000000
 
 class CarEnv:
     SHOW_CAM = SHOW_PREVIEW
@@ -263,12 +264,14 @@ class CarEnv:
 if __name__ == "__main__":
     
     # which method
-    qlearning = 0
+    qlearning = 1
     sarsa = 0
-    sarsa_lambda = 1
+    sarsa_lambda = 0
 
     FPS = 5
+    discountrate = 0.9999
     env = CarEnv()
+    learn_time = np.zeros(NUM_EPISODES)
 
     if qlearning == 1:
         agent = QAgent(80, 0, 50, 0)
@@ -280,15 +283,20 @@ if __name__ == "__main__":
     
     #agent.get_qs(np.ones((env.IM_HEIGHT, env.IM_WIDTH, 3)))
     for i in range(NUM_EPISODES):
+        # start runtime
         env.reset()
-        if i <= 50: 
-            EPSILON = 0.3
-        elif i > 50:
-            EPSILON = 0.1
-        elif i > 100:
-            EPSILON = 0.05
-        else:
-            EPSILON = 0.01
+        t_start = process_time()
+        print('epsilon: ' + str(EPSILON))
+
+        # if i <= 50: 
+        #     EPSILON = 0.3
+        # elif i > 50:
+        #     EPSILON = 0.1
+        # elif i > 100:
+        #     EPSILON = 0.05
+        # else:
+        #     EPSILON = 0.01
+
         while True:
             #env.spectator.set_transform(env.vehicle.get_transform())
             current_state = env.get_obs()
@@ -298,7 +306,7 @@ if __name__ == "__main__":
                 if np.random.uniform() > EPSILON:
                     action = np.argmax(agent.get_Q(current_state))
                     time.sleep(1/FPS)
-                    print(f"Action {action} was taken.")
+                    # print(f"Action {action} was taken.")
                 else:
                     action = np.random.randint(0, 3)
                     #print("Random action was taken.")
@@ -326,9 +334,22 @@ if __name__ == "__main__":
             
             if done:
                 break
-                    
+
+        # record episode runtime
+        t_intermediate = process_time()
+        learn_time[i] = t_intermediate - t_start
+
+        # reduce epsilon 
+        EPSILON = discountrate * EPSILON
+
+        # save Q-table and time data
+        np.save('qlearn.npy', agent.Q_table)
+        np.save('qlearn_runtime.npy', learn_time)
+
+        # clean up actors
         for actor in env.actor_list:
             print('destroying actor')
             actor.destroy()
         print(f"Episode {i}")
-        
+    
+    
