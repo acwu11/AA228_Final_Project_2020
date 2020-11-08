@@ -11,16 +11,17 @@ EPSILON = 0.3
 #---------------------------------------------------------------------------
 
 class QAgent:
-    def __init__(self, max_speed, min_speed, max_dist, min_dist, nAction):
+    def __init__(self, max_speed, min_speed, Sbins, max_dist, min_dist, Dbins, max_distside, min_distside, DSbins, nAction):
         # state & action space representation
-        self.saRep = Descritize(max_speed, min_speed, max_dist, min_dist, nAction)
+        self.saRep = Descritize(max_speed, min_speed, Sbins, max_dist, min_dist, Dbins, max_distside, min_distside, DSbins, nAction)
         nState = self.saRep.NSTATE_TOT
         nAction = self.saRep.NACT_TOT
 
         # initialize the Q table
         self.Q_table = np.ones((nState, nAction))
-        for a in range(9):
-            self.Q_table[:, 1] = np.ones(nState) * 5
+        #for a in range(9):
+        # Prior for Q table
+        self.Q_table[:, 1] = np.ones(nState) * 5
 
     #Outputs vector Q(s,a) for every possible a
     def update_Q(self, obs, reward, action, next_state):
@@ -46,11 +47,11 @@ class QAgent:
 #---------------------------------------------------------------------------
 
 class SARSA_agent(QAgent):
-    def __init__(self, max_speed, min_speed, max_dist, min_dist, nAction):
-        QAgent.__init__(self, max_speed, min_speed, max_dist, min_dist, nAction)
+    def __init__(self, max_speed, min_speed, Sbins, max_dist, min_dist, Dbins, max_distside, min_distside, DSbins, nAction):
+        QAgent.__init__(self, max_speed, min_speed, Sbins, max_dist, min_dist, Dbins, max_distside, min_distside, DSbins, nAction)
 
-        # initialize state to 0 speed, 50 depth, not in reverse, no collision
-        s_ind = self.saRep.get_state_ind(min_speed,max_dist,0,0)
+        # initialize state to 0 speed, max frontal distance, and max side distances
+        s_ind = self.saRep.get_state_ind(min_speed,max_dist,max_distside,max_distside)
         # initialize action to 1 throttle, no steer
         a_ind = 1
         self.lastexp = [s_ind, a_ind]
@@ -77,14 +78,13 @@ class SARSA_agent(QAgent):
 #---------------------------------------------------------------------------
 
 class SLambda_agent(QAgent):
-    def __init__(self, max_speed, min_speed, max_dist, min_dist, nAction, l):
-        QAgent.__init__(self, max_speed, min_speed, max_dist, min_dist, nAction)
+    def __init__(self, max_speed, min_speed, Sbins, max_dist, min_dist, Dbins, max_distside, min_distside, DSbins, nAction, l):
+        QAgent.__init__(self, max_speed, min_speed, Sbins, max_dist, min_dist, Dbins, max_distside, min_distside, DSbins, nAction)
         self.nState = self.saRep.NSTATE_TOT
         self.nAction = self.saRep.NACT_TOT
 
-        # initialize state to 0 speed, 50 depth, not in reverse, no collision and
-        # action to throttle 1, steer 0
-        s_ind = self.saRep.get_state_ind(min_speed,max_dist,0,0)
+        # initialize state to 0 speed, max frontal distance, and max side distances
+        s_ind = self.saRep.get_state_ind(min_speed,max_dist,max_distside,max_distside)
         a_ind = 1
         self.lastexp = [s_ind, a_ind]
         self.lam = l                                    # exponential decay factor
