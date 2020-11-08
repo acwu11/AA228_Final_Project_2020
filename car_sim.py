@@ -276,16 +276,16 @@ class CarEnv:
 if __name__ == "__main__":
     # simulation parameters
     EPSILON = 0.3           # exploration 
-    DISCOUNT = 0.9          # discount (gamma)
-    LEARNING_RATE = 0.9     # learning rate (alpha)
-    NUM_EPISODES = 100      # number of training episodes
+    DISCOUNT = 0.95         # discount (gamma)
+    LEARNING_RATE = 0.6     # learning rate (alpha)
+    NUM_EPISODES = 1000     # number of training episodes
     FPS = 5                 # frames per second
-    DR_ALPHA = 0.999        # discount rate on epsilon (alpha)
+    DR_ALPHA = 0.99         # discount rate on epsilon (alpha)
         
     # method selection
     qlearning = 0
-    sarsa = 0
-    sarsa_lambda = 1
+    sarsa = 1
+    sarsa_lambda = 0
 
     # set up environment and agent
     env = CarEnv()
@@ -323,11 +323,11 @@ if __name__ == "__main__":
                 if np.random.uniform() > EPSILON:
                     action = agent.lastexp[1]
                     #time.sleep(1/FPS)
-                    print(f"Action {action} was taken.")
+                    # print(f"Action {action} was taken.")
                 else:
                     action = np.random.randint(0, 5)
                     #time.sleep(1/FPS)
-                    print(f"Random action {action} was taken.")
+                    # print(f"Random action {action} was taken.")
             
             # advance controls with that action
             new_state, reward, done, _ = env.step(action)
@@ -351,8 +351,8 @@ if __name__ == "__main__":
         EPSILON = DR_ALPHA * EPSILON
 
         # save Q-table and time data
-        np.save('qlearn.npy', agent.Q_table)
-        np.save('qlearn_runtime.npy', learn_time)
+        np.save('sarsa.npy', agent.Q_table)
+        np.save('sarsa_runtime.npy', learn_time)
 
         # clean up actors
         for actor in env.actor_list:
