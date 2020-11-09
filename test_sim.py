@@ -183,29 +183,19 @@ class Test:
         
     def register_obstacle(self, data):
         self.Obdist = data.distance
-        #return data
-        #self.obstacle = data
         
     def register_obstacleL(self, data):
         self.ObdistL = data.distance
-        #print(f"Left side collision: {self.ObdistL}")
-        #return data
-        #self.obstacle = data
     
     def register_obstacleR(self, data):
         self.ObdistR = data.distance
-        #print(f"Right side collision: {self.ObdistR}")
-        #return data
-        #self.obstacle = data
         
     def register_collision(self, data):
         collided_with = data.other_actor
         print(collided_with)
         self.collision_hist.append(data)
 
-        self.epCollidedWith = collided_with
-        #vehicle.apply_control(carla.VehicleControl(throttle=1.0, steer=0, reverse=True))
-        #return collided_with
+        self.epCollidedWith = collided_with.type_id
         
     def process_IMU(self, data):
         gyro = data.gyroscope
@@ -315,7 +305,7 @@ if __name__ == "__main__":
     ep_reward = np.zeros(numTest)
     ep_col_times = np.zeros(numTest)
     ep_times =  np.zeros(numTest)
-    ep_col_items = np.zeros(numTest)
+    ep_col_items = []
 
     # for k in range(numTest):
     print(f"Running {numTest} Tests")
@@ -356,9 +346,9 @@ if __name__ == "__main__":
         
         ep_times[k] = t_epEnd - t_epStart
         ep_reward[k] = test.epReward
-        ep_col_items[k] = test.epCollidedWith
+        ep_col_items.append(test.epCollidedWith)
 
-        # save metrics
+        # save metrics to files
         print('Saving Metrics')
         np.save(f'{method}_reward.npy', ep_reward)
         np.save(f'{method}_epTimes.npy', ep_times)
