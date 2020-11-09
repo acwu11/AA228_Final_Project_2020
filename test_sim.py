@@ -18,7 +18,7 @@ import cv2
 import statistics
 import math
 
-from model_free import *
+from representation import *
 
 IM_WIDTH = 640
 IM_HEIGHT = 480
@@ -51,15 +51,28 @@ class Test:
         self.bp = self.blueprint_library.filter('model3')[0]
         print(self.bp)
 
-        # specify available actions [throttle, steer, brake]
+       # specify available actions [throttle, steer, brake]
         self.ActionDict = {0 : [1.0, -0.1, 0], 
                            1 : [1.0, 0, 0],
-                           2 : [1.0, 0.1, 0]}
+                           2 : [1.0, 0.1, 0],
+                           3 : [0.5, 0.1, 0],
+                           4 : [0.5, -0.1, 0],
+                           5 : [0, 0.1, 0],
+                           6 : [0, -0.1, 0],
+                           7 : [0, 0.1, 0.5],
+                           8 : [0, -0.1, 0.5],
+                           9 : [0, 0.1, 1],
+                           10: [0, -0.1, 1]}
+        self.nAction = len(self.ActionDict)
 
-        # test metrics and params
+        # create state space representation and load Q table
+        self.saRep = Descritize(80, 0, 10, 30, 0, 10, 20, 0, 10, 5)
         if self.method != 'auto':
-            self.Q_table = np.load(action_file)                                        # load extracted policy
+            self.Q_table = np.load(action_file)    # load extracted policy
+        
+        # test metrics for single episode
         self.epReward = 0
+        self.epCollidedWith = ''
     
     # reset environment
     def reset(self, test_ind):
@@ -76,6 +89,7 @@ class Test:
         self.azimuth = 0
         self.zrate = 0
         
+        # spawn at spawn point corresponding to test index
         self.spawn_point = (self.world.get_map().get_spawn_points())[test_ind]
 
         # spawn vehicle at chosen spawn point and append to actor list
@@ -134,8 +148,6 @@ class Test:
         spawn_pointcam = carla.Transform(carla.Location(x=0, z=2))
 
         # spawn the sensor and attach to vehicle.
-        #self.sensor = self.world.spawn_actor(self.blueprint, spawn_point, attach_to=self.vehicle)
-        
         self.sensorOD = self.world.spawn_actor(self.blueprintOD, spawn_pointD, attach_to=self.ego_vehicle)
         self.sensorODR = self.world.spawn_actor(self.blueprintODside, spawn_pointR, attach_to=self.ego_vehicle)
         self.sensorODL = self.world.spawn_actor(self.blueprintODside, spawn_pointL, attach_to=self.ego_vehicle)
@@ -145,7 +157,6 @@ class Test:
         self.sensorIMU = self.world.spawn_actor(self.blueprintIMU, spawn_point, attach_to=self.ego_vehicle)
 
         # add sensor to list of actors
-        #self.actor_list.append(self.sensor)
         self.actor_list.append(self.sensorOD)
         self.actor_list.append(self.sensorODL)
         self.actor_list.append(self.sensorODR)
@@ -154,12 +165,10 @@ class Test:
         self.actor_list.append(self.sensorIMU)
 
         # do something with this sensor
-        #self.sensor.listen(lambda data: self.process_data(data))
         self.sensorOD.listen(lambda dataOD: self.register_obstacle(dataOD))   
         self.sensorODL.listen(lambda dataODL: self.register_obstacleL(dataODL))
         self.sensorODR.listen(lambda dataODR: self.register_obstacleR(dataODR))
         self.sensorCD.listen(lambda dataCD: self.register_collision(dataCD))
-        #self.sensorRGB.listen(lambda dataRGB: self.process_img(dataRGB))
         self.sensorIMU.listen(lambda dataIMU: self.process_IMU(dataIMU))
         
     #- DATA PROCESSING --------------------------------------------------------------------------
@@ -171,28 +180,6 @@ class Test:
             cv2.imshow("", i3)
             cv2.waitKey(1)
         self.front_camera = i3
-
-    # def process_data(self, data):
-    #     img = data.raw_data
-    #     self.points = np.frombuffer(data.raw_data, dtype=np.dtype('f4'))
-    #     self.points = np.reshape(self.points, (len(data), 4))
-    #     if len(self.points) > 0:
-    #         #self.depth = statistics.mean([item[3] for item in self.points])
-    #         #self.depth = min([item[3] for item in self.points])
-    #         self.azimuth = statistics.mean([item[2] for item in self.points])*(180/math.pi)
-    #         self.detect_count = data.get_detection_count()
-    #         vel = [item[0] for item in self.points]
-    #         maxvel = min(vel)
-    #         maxveldata = self.points[[i for i,x in enumerate(vel) if x==maxvel]]
-    #         #print(maxveldata)
-    #         azi_of_maxvel = [item[2] for item in maxveldata][0]*180/math.pi
-    #         #print(maxvel)
-    #         #print(azi_of_maxvel)
-            
-    #     #print(f"Azimuth is {self.azimuth}")
-    #     #print(f"Depth is {self.depth}")
-    #     #print(self.detect_count)
-    #     return
         
     def register_obstacle(self, data):
         self.Obdist = data.distance
@@ -215,6 +202,8 @@ class Test:
         collided_with = data.other_actor
         print(collided_with)
         self.collision_hist.append(data)
+
+        self.epCollidedWith = collided_with
         #vehicle.apply_control(carla.VehicleControl(throttle=1.0, steer=0, reverse=True))
         #return collided_with
         
@@ -229,37 +218,30 @@ class Test:
         return [self.kmh, self.Obdist, self.ObdistR, self.ObdistL, len(self.collision_hist)]
 
     def step(self, action):
-        # apply action
-        if action == 0:
-            self.ego_vehicle.apply_control(carla.VehicleControl(throttle=.8, steer=-.1))
-        elif action == 1:
-            self.ego_vehicle.apply_control(carla.VehicleControl(throttle=.8, steer=0))
-        elif action == 2:
-            self.ego_vehicle.apply_control(carla.VehicleControl(throttle=.8, steer=.1))
-        elif action == 3:
-            self.ego_vehicle.apply_control(carla.VehicleControl(throttle=0.5, steer=.1))
-        elif action == 4:
-            self.ego_vehicle.apply_control(carla.VehicleControl(throttle=0.5, steer=-.1))
-        else:
-            self.ego_vehicle.apply_control(carla.VehicleControl(throttle=0, steer=-.1, brake=1))
+        # given action apply throttle and steer
+        t = self.ActionDict[action][0]
+        s = self.ActionDict[action][1]
+        b = self.ActionDict[action][2]
+        self.ego_vehicle.apply_control(carla.VehicleControl(throttle=t, steer=s, brake=b))
         
+        # car velocity
         self.v = self.ego_vehicle.get_velocity()
         self.kmh = int(3.6*math.sqrt(self.v.x**2 + self.v.y**2 + self.v.z**2))
 
-        # rewards
-        if self.Obdist < 25 and action == 1:
+        # reward
+        if 15 < self.Obdist < 25 and action == 1:
             done = False
             reward = -30
         elif self.Obdist < 15 and action == 1:
             done = False
             reward = -200
-        elif self.ObdistL < 20 and (action == 0 or action == 4 or action == 6):
+        elif 10 < self.ObdistL < 20 and  (action == 0 or action == 4 or action == 6):
             reward = -50
             done = False
         elif self.ObdistL < 10 and (action == 0 or action == 4 or action == 6):
             reward = -500
             done = False
-        elif self.ObdistR < 20 and (action == 2 or action == 3 or action == 5):
+        elif 10 < self.ObdistR < 20 and (action == 2 or action == 3 or action == 5):
             reward = -50
             done = False
         elif self.ObdistR < 10 and (action == 2 or action == 3 or action == 5):
@@ -275,24 +257,25 @@ class Test:
             
         return reward, done
     
+    # pseudo reward for the auto pilot
     def step_auto(self):
         self.v = self.ego_vehicle.get_velocity()
         self.kmh = int(3.6*math.sqrt(self.v.x**2 + self.v.y**2 + self.v.z**2))
 
-        # rewards
-        if self.Obdist < 25:
+        # reward
+        if 15 < self.Obdist < 25:
             done = False
             reward = -30
-        elif self.Obdist < 15: 
+        elif self.Obdist < 15:
             done = False
             reward = -200
-        elif self.ObdistL < 20: 
+        elif 10 < self.ObdistL < 20:
             reward = -50
             done = False
-        elif self.ObdistL < 10: 
+        elif self.ObdistL < 10:
             reward = -500
             done = False
-        elif self.ObdistR < 20:
+        elif 10 < self.ObdistR < 20:
             reward = -50
             done = False
         elif self.ObdistR < 10:
@@ -301,7 +284,7 @@ class Test:
         else:
             done = False
             reward = 0
-        
+            
         if len(self.collision_hist) != 0:
             done = True
             reward = reward - 500
@@ -310,54 +293,33 @@ class Test:
     
      #- Qtable --------------------------------------------------------------------------
     def get_Q(self, obs):
-        self.speed = math.floor(obs[0]/10)
-        if self.speed > 8:
-            self.speed = 8
-            
-        self.dist = math.floor(obs[1]/10)
-        if self.dist > 3:
-            self.dist = 3
-        
-        self.distR = math.floor(obs[2]/10)
-        if self.distR >= 2:
-            self.distR = 2
-        
-        self.distL = math.floor(obs[3]/10)
-        if self.distL >= 2:
-            self.distL = 2
-            
-        #self.rev = obs[2]
-        self.col = obs[4]
-        if self.col > 1:
-            self.col = 1
-            
-        #self.zr = math.floor(obs[4]/5)
-        #if self.zr < -2:
-        #    self.zr = -2
-        #elif self.zr >= 2:
-        #    self.zr = 1
-            
-        #self.zr = self.zr + 2
-        
-        self.state = np.ravel_multi_index((self.speed, self.dist, self.distR, self.distL), (9,4,3,3))
-        
-        return self.Q_table[self.state, :]
+        state = self.saRep.get_state_ind(obs[0], obs[1], obs[2], obs[3])
+        return self.Q_table[state, :]
 
 if __name__ == "__main__":
-
-    method = 'auto'
+    # set method: test output files will be saved starting with method string
+    #   'auto' for autopilot
+    #   'Qlearning for Q Learning'
+    #   'sarsa' for sarsa
+    #   'sarsaL' for sarsa lambda
+    method = 'sarsa'
     if method == 'auto':
         test = Test(method, others=1)
+
+    # TODO: fill in correct action file (q-table) file for corresponding method
     else:
-        test = Test(method, action_file=f'Q_table{method}.npy',others=1)
-    numTest = len(test.world.get_map().get_spawn_points())    # number of tests to run
+        test = Test(method, action_file='sarsa.npy',others=1)
+
+    # test metrics and storage
+    numTest = 150
     ep_reward = np.zeros(numTest)
     ep_col_times = np.zeros(numTest)
     ep_times =  np.zeros(numTest)
+    ep_col_items = np.zeros(numTest)
 
     # for k in range(numTest):
     print(f"Running {numTest} Tests")
-    for k in range(150):
+    for k in range(numTest):
         print(f"Starting Test {k}")
         stop = 0
         t_epStart = process_time()
@@ -394,13 +356,14 @@ if __name__ == "__main__":
         
         ep_times[k] = t_epEnd - t_epStart
         ep_reward[k] = test.epReward
+        ep_col_items[k] = test.epCollidedWith
 
         # save metrics
         print('Saving Metrics')
         np.save(f'{method}_reward.npy', ep_reward)
         np.save(f'{method}_epTimes.npy', ep_times)
         np.save(f'{method}_collision.npy', ep_col_times)
-
+        np.save(f'{method}_collItems.npy', ep_col_items)
 
         # clean up actors
         for actor in test.actor_list:
